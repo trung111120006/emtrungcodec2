@@ -1,5 +1,4 @@
 #include "octree.h"
-
 void QUANG::insert_point(octree *node, const QUANG::point &point, const QUANG::color &attribute, float &error2)
 {
     if (!node)
@@ -35,7 +34,7 @@ void QUANG::from_pc_to_octree(QUANG::PointCloud *pc, octree *root, float error)
         insert_point(root, ((QUANG::point *)pc->vertices)[i], ((QUANG::color *)pc->rgb)[i], error2);
 }
 // Hàm đếm nút lá theo DFS
-int count_leaves(octree* node) {
+int count_leaves(QUANG::octree* node) {
     if (!node) return 0;
 
     bool has_child = false;
@@ -138,8 +137,76 @@ QUANG::octree *QUANG::load_octree_from_file(const char *filename)
     root->count = count;
     return root;
 }
-// // return number of tree
-// int QUANG::octree_diff(octree **diff, int* position, octree *ref, octree *pred)
-// {
-    
-// }
+// Hàm so sánh hai cây octree và lưu các khác biệt, sử dụng XOR
+int octree_diff(QUANG::octree **diff, int* position, QUANG::octree *ref, QUANG::octree *pred) {
+    int diff_count = 0; // Đếm số khác biệt
+    std::vector<std::pair<QUANG::octree*, QUANG::octree*>> stack; // Stack cho duyệt DFS 
+    stack.emplace_back(ref, pred); // Thêm cặp nút gốc
+
+    int pos_index = 0; // Chỉ số cho mảng position
+
+    while (!stack.empty()) {
+        auto [ref_node, pred_node] = stack.back();
+        stack.pop_back();
+
+        // Kiểm tra nếu một trong hai nút là null
+        if (!ref_node || !pred_node) {
+            if (ref_node && !pred_node) {
+                bool has_child = false;
+                for (int i = 0; i < 8; ++i) {
+                    if (ref_node->children[i]) {
+                        has_child = true;
+                        break;
+                    }
+                }
+                if (!has_child) {
+                    diff[diff_count] = ref_node;
+                    position[pos_index++] = diff_count;
+                    diff_count++;
+                }
+            } else if (!ref_node && pred_node) {
+                bool has_child = false;
+                for (int i = 0; i < 8; ++i) {
+                    if (pred_node->children[i]) {
+                        has_child = true;
+                        break;
+                    }
+                }
+                if (!has_child) {
+                    diff[diff_count] = pred_node;
+                    position[pos_index++] = diff_count;
+                    diff_count++;
+                }
+            }
+            continue;
+        }
+
+        // Kiểm tra nếu là nút lá
+        bool ref_has_child = false, pred_has_child = false;
+        for (int i = 0; i < 8; ++i) {
+            if (ref_node->children[i]) ref_has_child = true;
+            if (pred_node->children[i]) pred_has_child = true;
+        }
+
+        if (!ref_has_child && !pred_has_child) {
+            // So sánh màu của nút lá bằng XOR
+            unsigned char r_xor = ref_node->attribute.r ^ pred_node->attribute.r;
+            unsigned char g_xor = ref_node->attribute.g ^ pred_node->attribute.g;
+            unsigned char b_xor = ref_node->attribute.b ^ pred_node->attribute.b;
+            if (r_xor != 0 || g_xor != 0 || b_xor != 0) {
+                diff[diff_count] = ref_node; // Lưu nút từ ref
+                position[pos_index++] = diff_count; // Lưu chỉ số
+                diff_count++;
+            }
+            continue;
+        }
+
+        // Nếu không phải nút lá, duyệt các nút con theo thứ tự 7->0.
+        for (int i = 7; i >= 0; --i) {
+            if (ref_node->children[i] || pred_node->children[i]) {
+                stack.emplace_back(ref_node->children[i], pred_node->children[i]);
+            }
+        }
+    }
+    return diff_count;
+}
