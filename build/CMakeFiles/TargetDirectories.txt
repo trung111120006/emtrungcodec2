@@ -1,0 +1,4 @@
+/home/trunglq/project/emtrungcodec/build/CMakeFiles/encode.dir
+/home/trunglq/project/emtrungcodec/build/CMakeFiles/decode.dir
+/home/trunglq/project/emtrungcodec/build/CMakeFiles/edit_cache.dir
+/home/trunglq/project/emtrungcodec/build/CMakeFiles/rebuild_cache.dir

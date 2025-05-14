@@ -1,0 +1,1 @@
+/usr/bin/c++ -rdynamic CMakeFiles/decode.dir/decode.cpp.o CMakeFiles/decode.dir/pointcloud.cpp.o CMakeFiles/decode.dir/miniply.cpp.o CMakeFiles/decode.dir/octree.cpp.o -o ../bin/decode  -lpthread 

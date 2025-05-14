@@ -1,0 +1,1 @@
+/usr/bin/c++ -rdynamic CMakeFiles/encode.dir/encode.cpp.o CMakeFiles/encode.dir/pointcloud.cpp.o CMakeFiles/encode.dir/miniply.cpp.o CMakeFiles/encode.dir/octree.cpp.o -o ../bin/encode 
