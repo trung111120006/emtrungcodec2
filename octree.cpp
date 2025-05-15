@@ -1,4 +1,5 @@
 #include "octree.h"
+#include "pointcloud.h"
 void QUANG::insert_point(octree *node, const QUANG::point &point, const QUANG::color &attribute, float &error2)
 {
     if (!node)
@@ -132,7 +133,7 @@ QUANG::octree *QUANG::load_octree_from_file(const char *filename)
     in.read((char *)(&min_bound), sizeof(QUANG::point));
     in.read((char *)(&max_bound), sizeof(QUANG::point));
 
-    octree *root = read_octree(in, min_bound, max_bound);
+    QUANG::octree *root = read_octree(in, min_bound, max_bound);
     in.close();
     root->count = count;
     return root;

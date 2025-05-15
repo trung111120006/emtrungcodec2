@@ -1,6 +1,6 @@
 file(REMOVE_RECURSE
-  "../bin/encode"
-  "../bin/encode.pdb"
+  "../encode"
+  "../encode.pdb"
   "CMakeFiles/encode.dir/encode.cpp.o"
   "CMakeFiles/encode.dir/encode.cpp.o.d"
   "CMakeFiles/encode.dir/miniply.cpp.o"

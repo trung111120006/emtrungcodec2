@@ -5,18 +5,18 @@
 #include <atomic>       
 #include <condition_variable>    
 #include <bits/stdc++.h>  
-// Cấu trúc lưu tham số cho hàm search
+
 struct param {
     QUANG::PointCloud* pc; 
     QUANG::octree* root;   
-    std::mutex* pc_mutex; 
+    std::mutex* pc_mutex; // Mutex để bảo vệ đám mây điểm
 };
 
 // Lớp ThreadPool để quản lý các luồng tái sử dụng
 class ThreadPool {
 private:
-    std::vector<std::thread> workers; // Danh sách các luồng công nhân
-    std::queue<std::function<void()>> tasks; // Hàng đợi chứa các tác vụ
+    std::vector<std::thread> workers; 
+    std::queue<std::function<void()>> tasks;
     std::mutex queue_mutex; // Mutex bảo vệ hàng đợi
     std::condition_variable condition; // Biến điều kiện để đồng bộ luồng
     std::atomic<bool> stop; // Cờ dừng ThreadPool
@@ -29,14 +29,13 @@ public:
                 while (true) {
                     std::function<void()> task;
                     {
-                        std::unique_lock<std::mutex> lock(queue_mutex); // Khóa hàng đợi
-                        // Chờ đến khi có tác vụ hoặc ThreadPool dừng
+                        std::unique_lock<std::mutex> lock(queue_mutex);
                         condition.wait(lock, [this] { return stop || !tasks.empty(); });
-                        if (stop && tasks.empty()) return; // Thoát nếu ThreadPool dừng
-                        task = std::move(tasks.front()); // Lấy tác vụ đầu tiên
-                        tasks.pop(); // Xóa tác vụ khỏi hàng đợi
+                        if (stop && tasks.empty()) return; 
+                        task = std::move(tasks.front()); 
+                        tasks.pop();
                     }
-                    task(); // Thực thi tác vụ
+                    task(); 
                 }
             });
         }
@@ -66,21 +65,25 @@ public:
 
 // Hàm thêm điểm và màu vào đám mây điểm, thread-safe
 void pc_addpointandrgb(QUANG::PointCloud* pc, QUANG::point& p, QUANG::color& c, std::mutex* pc_mutex) {
-    std::lock_guard<std::mutex> lock(*pc_mutex); // Khóa để đảm bảo thread-safe
-    if (pc->count < pc->size) { // Kiểm tra giới hạn để tránh ghi đè
-        ((QUANG::point *)(pc->vertices))[pc->count] = p;// Lưu tọa độ điểm
-        ((QUANG::color *)(pc->rgb))[pc->count] = c; // Lưu màu điểm
-        pc->count++;                 // Tăng số lượng điểm
+    std::lock_guard<std::mutex> lock(*pc_mutex);
+    if (pc->count < pc->size) {
+        pc->vertices[pc->count * 3 + 0] = p.x; 
+        pc->vertices[pc->count * 3 + 1] = p.y;
+        pc->vertices[pc->count * 3 + 2] = p.z;
+        pc->rgb[pc->count * 3 + 0] = c.r;
+        pc->rgb[pc->count * 3 + 1] = c.g;
+        pc->rgb[pc->count * 3 + 2] = c.b;
+        pc->count++;
     }
 }
 
 // Hàm search: duyệt cây octree bằng DFS để tạo đám mây điểm
 void search(param* p) {
-    QUANG::PointCloud* pc = p->pc; // Lấy con trỏ đám mây điểm
-    QUANG::octree* root = p->root; // Lấy con trỏ cây octree
-    std::mutex* pc_mutex = p->pc_mutex; // Lấy con trỏ mutex
+    QUANG::PointCloud* pc = p->pc; 
+    QUANG::octree* root = p->root; 
+    std::mutex* pc_mutex = p->pc_mutex; 
     
-    std::vector<QUANG::octree*> stack; // Stack cho duyệt DFS
+    std::vector<QUANG::octree*> stack;
     stack.reserve(1024); // Dự trữ không gian để tránh tái cấp phát
     stack.push_back(root); // Thêm nút gốc vào stack
 
@@ -106,51 +109,45 @@ void search(param* p) {
     }
 }
 
-// Hàm chính: chuyển octree thành file PLY
 void write_octree_to_ply(QUANG::octree* root, const char* filename, int n_thread) {
-    // Kiểm tra nếu root là null
     if (!root) {
         std::cerr << "Lỗi: root là null\n";
         return;
     }
-
     // Khởi tạo đám mây điểm với bộ nhớ cấp phát trước
     QUANG::PointCloud* pc = new QUANG::PointCloud();
-    pc->size = root->count; // Đặt kích thước dựa trên số nút lá
-    pc->count = 0; // Khởi tạo số điểm
-    pc->vertices = new QUANG::point[pc->size]; // Cấp phát mảng điểm
-    pc->rgb = new QUANG::color[pc->size]; // Cấp phát mảng màu
+    pc->size = root->count; 
+    pc->count = 0; 
+    pc->vertices = new float[pc->size]; // Cấp phát mảng điểm
+    pc->rgb = new unsigned char[pc->size]; // Cấp phát mảng màu
     std::mutex pc_mutex; // Mutex bảo vệ đám mây điểm
 
     // Xử lý đa luồng hoặc đơn luồng
     if (n_thread > 1) {
-        ThreadPool pool(std::min(n_thread, 8)); // Khởi tạo ThreadPool (tối đa 8 luồng)
-        std::vector<param> params(8); // Mảng tham số cho 8 nút con
+        ThreadPool pool(std::min(n_thread, 8)); 
+        std::vector<param> params(8); 
 
         // Phân phối công việc cho các nút con
         for (int i = 0; i < 8; i++) {
             if (root->children[i]) {
-                params[i] = {pc, root->children[i], &pc_mutex}; // Gán tham số
-                pool.enqueue([&params, i] { search(&params[i]); }); // Thêm tác vụ vào ThreadPool
+                params[i] = {pc, root->children[i], &pc_mutex}; 
+                pool.enqueue([&params, i] { search(&params[i]); }); 
             }
         }
     } else {
         // Chạy đơn luồng nếu n_thread <= 1
         param p{pc, root, &pc_mutex};
-        search(&p); // Gọi search trực tiếp
+        search(&p);
     }
 
-    // Ghi đám mây điểm ra file PLY
     write_pc_to_ply(pc, filename);
 
-    // Giải phóng bộ nhớ
     delete[] pc->vertices;
     delete[] pc->rgb;
     delete pc;
 }
 
 int main(int argc, char* argv[]) {
-    // Kiểm tra số lượng tham số dòng lệnh
     if (argc != 4) {
         std::cerr << "Cách dùng: ./decode <file_in> <n_threads> <file_out>\n";
         return 1;
@@ -168,8 +165,6 @@ int main(int argc, char* argv[]) {
         std::cerr << "Số luồng phải lớn hơn 0\n";
         return 1;
     }
-
-    // Đo thời gian thực thi
     struct timespec start_time, end_time;
     clock_gettime(CLOCK_REALTIME, &start_time);
 
@@ -180,13 +175,9 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Chuyển octree thành file PLY
     write_octree_to_ply(octree_root, argv[3], n_threads);
 
-    // Giải phóng bộ nhớ
     delete octree_root;
-
-    // Tính và in thời gian thực thi
     clock_gettime(CLOCK_REALTIME, &end_time);
     double elapsed_time_ms =
         (end_time.tv_sec - start_time.tv_sec) * 1000.0 +
@@ -194,5 +185,4 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Thời gian thực thi: " << elapsed_time_ms << " ms" << std::endl;
 
-    return 0; // Thoát chương trình
-}
+    return 0;

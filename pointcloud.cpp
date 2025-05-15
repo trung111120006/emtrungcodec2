@@ -112,3 +112,4 @@ void QUANG::write_pc_to_ply(QUANG::PointCloud *pc, const char *outpath)
     {
         std::cerr << "Error writing to file: " << outpath << std::endl;
     }
+}
